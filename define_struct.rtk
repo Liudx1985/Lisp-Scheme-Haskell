@@ -1,0 +1,15 @@
+#lang racket
+
+(define-struct posn (x y [z #:auto])
+   #:reflection-name '<posn>
+   #:auto-value 0
+   #:transparent 
+  )
+(define a (posn 1 2))
+(posn? a)
+(posn-y a)
+
+(require parser-tools/lex)
+; define C++ header file lexer analyze for generate more details
+
+

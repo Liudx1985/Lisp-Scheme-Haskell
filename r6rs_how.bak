@@ -1,0 +1,10 @@
+#!r6rs
+(library (main)
+  (export)
+  (import (rnrs))
+  
+
+(display "hello ,god")
+
+
+)

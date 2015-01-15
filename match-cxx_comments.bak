@@ -1,0 +1,7 @@
+#lang racket
+; Remove comments of a cxx file.
+(require racket/match)
+(match '(1 2 3)
+   [(list (not 4) ...) 'yes]
+   [_ 'no])
+`(1 ```,,@,,@(list (+ 1 2)) 4)

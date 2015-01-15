@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<!-- saved from url=(0055)http://pathtovoid.net/post/2011/12/18/callcc-in-scheme/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	
+
+	<title>Path to Void</title>
+
+	<link rel="shortcut icon" href="http://pathtovoid.net/theme/images/favicon.png">
+	<link rel="stylesheet" type="text/css" href="./font-face.css">
+	<link rel="stylesheet" type="text/css" href="./main.css">
+	<script type="text/javascript" src="./jquery-1.8.3.min.js" charset="UTF-8"></script>
+	<script type="text/javascript" src="./main.js" charset="UTF-8"></script>
+<script type="text/javascript" async="" src="./embed.js"></script></head>
+
+<body>
+<div id="wrapper">
+<div id="header">
+	
+<div>
+	<h1 id="site_title"><a href="http://pathtovoid.net/">Path to Void</a></h1>
+	<div id="site_subtitle"><p></p></div>
+</div>
+
+<div class="pages_list">
+<ul>
+	<li><a href="http://pathtovoid.net/">Home</a></li>
+	<li><a href="http://pathtovoid.net/archive">Archive</a></li>
+
+	<li><a href="http://pathtovoid.net/page/links/">Links</a></li>
+
+	<li><a href="http://pathtovoid.net/page/about-me/">About</a></li>
+
+</ul>
+</div>
+</div>
+
+<div id="content">
+	
+
+<div>
+<div id="post_title_wrap">
+<h2 id="post_title"><a href="./call with current continuation.htm">Scheme里的call/cc</a></h2>
+<div id="post_timestamp">2011-12-18 15:24:42</div>
+</div>
+
+<div>
+
+<p>
+一些命令式语言中常常提供了continue、break、return等语法结构来支持执行流的转移。
+如果把这类语法结构看作异常处理的话，那么它们都需要一个外部的包围块来“捕获”，
+在编译时即可确定。这些语法结构使程序的执行得以由内向外地传递。
+而真正的异常可以在任何地方抛出，不一定要有一个包围块，
+而且异常抛出后被哪一部分代码捕获也无法在编译时确定。
+异常从被调用者传递给调用者，使执行流得以在调用栈上由下向上地传递。
+</p>
+
+
+
+
+
+<p>
+另外，C也提供了<code class="inline_code">setjmp</code>/<code class="inline_code">longjmp</code>来允许程序进行非局部的跳转。
+<code class="inline_code">setjmp</code>/<code class="inline_code">longjmp</code>的限制在于，<code class="inline_code">longjmp</code>跳转对应的<code class="inline_code">setjmp</code>所在的函数不能退出，
+也就是说在调用<code class="inline_code">longjmp</code>时必须保证之前的栈信息不被修改。
+</p>
+
+
+
+<p>
+call/cc全称是call with current continuation，在Scheme中是一个函数<code class="inline_code">call-with-current-continuation</code>，
+用全名和<code class="inline_code">call/cc</code>均可以调用。call/cc可以看作一个控制流的操作符，用来实现程序执行的跳转。
+所谓一个continuation是指程序运行中的某一个snapshot，告诉我们程序未来将要进行的所有操作。
+例如在<code class="inline_code">(sqr (+ 6 7))</code>中，<code class="inline_code">(+ 6 7)</code>所处的continuation便是，得到<code class="inline_code">(+ 6 7)</code>这个值，然后将其平方。
+</p>
+
+
+
+<p>
+在Scheme中，函数<code class="inline_code">call/cc</code>接收另一个函数<code class="inline_code">f</code>作为参数，并将<code class="inline_code">f</code>作用在当前continuation上，
+因此<code class="inline_code">call/cc</code>常用来抽取当前的continuation。这个continuation保存了当前程序执行的上下文，
+它（指当前continuation）唯一支持的操作是函数调用。 
+调用一个continuation时，现有的执行流被挂起，
+被调用的continuation所对应的执行流被恢复。
+调用这个continuation时传入的参数则作为创建它的<code class="inline_code">call/cc</code>的返回值（执行流回到<code class="inline_code">call/cc</code>创建这个continuation的地方）。
+这样通过<code class="inline_code">call/cc</code>创建出来的continuation可以反复在其他地方调用，
+而不仅仅限制于包围<code class="inline_code">call/cc</code>的作用域。
+像这种将程序的隐含状态提取出来的过程称为reification（具体化）。
+</p>
+
+
+
+<p>
+传给<code class="inline_code">call/cc</code>的函数<code class="inline_code">f</code>，将会以当前continuation为参数被调用。
+在其中，若这个作为参数的continuation被调用，
+则控制流返回其对应的<code class="inline_code">call/cc</code>处，并将调用continuation时传入的参数作为这个<code class="inline_code">call/cc</code>的返回值。
+否则f正常退出，执行继续。
+</p>
+
+
+
+<p>
+先来几个简单的例子：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">c</span><span class="p">)</span> <span class="p">(</span><span class="nf">c</span> <span class="mi">1</span><span class="p">)))</span>
+<span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">c</span><span class="p">)</span> <span class="p">(</span><span class="nb">+ </span><span class="p">(</span><span class="nf">c</span> <span class="mi">1</span><span class="p">)</span> <span class="mi">1</span><span class="p">)))</span>
+<span class="p">(</span><span class="k">define </span><span class="nv">cont</span> <span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">c</span><span class="p">)</span> <span class="nv">c</span><span class="p">)))</span>
+<span class="p">(</span><span class="nf">cont</span> <span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+第一个<code class="inline_code">call/cc</code>将1传递给当前continuation，于是立即返回1。
+基于这个原因，第二个<code class="inline_code">call/cc</code>也将立即返回1，而不会再进行加一的操作，
+因为当前的执行流已经跳转。第三条语句中，<code class="inline_code">call/cc</code>返回当前continuation给变量<code class="inline_code">cont</code>，
+调用<code class="inline_code">(cont 1)</code>时，将1传给<code class="inline_code">cont</code>中保存的continuation，程序回到第三条语句中，
+<code class="inline_code">call/cc</code>返回1，于是<code class="inline_code">cont</code>变量被定义为1。
+</p>
+
+
+<p>
+<code class="inline_code">call/cc</code>可以用来做一些效果奇特但也让人头疼的事情。
+</p>
+
+
+<h1> 实现<code class="inline_code">return</code></h1>
+
+<p>
+例如在线性查找中，我们希望找到目标元素之后立即返回：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">linear-search</span> <span class="nv">wanted</span> <span class="nv">lst</span><span class="p">)</span>
+  <span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">return</span><span class="p">)</span>
+             <span class="p">(</span><span class="nb">for-each </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">k</span><span class="p">)</span>
+                         <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nb">= </span><span class="nv">k</span> <span class="nv">wanted</span><span class="p">)</span>
+                             <span class="p">(</span><span class="nf">return</span> <span class="nv">k</span><span class="p">)))</span>
+                       <span class="nv">lst</span><span class="p">)</span>
+             <span class="no">#f</span><span class="p">)))</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+以上找到目标元素后，将其传给当前continuation，即return，作为<code class="inline_code">call/cc</code>的返回值。
+</p>
+
+
+<h1> 实现生成器</h1>
+<p>
+我们希望对一个输入的可迭代的对象获得一个生成器g，每次调用g能返回该对象的一个元素。借助<code class="inline_code">call/cc</code>可以写成：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">make-generator</span> <span class="nv">lst</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">gateway</span> <span class="nv">outer-space</span><span class="p">)</span>
+    <span class="p">(</span><span class="nb">for-each </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">element</span><span class="p">)</span>
+                <span class="p">(</span><span class="k">set! </span><span class="nv">outer-space</span>
+                      <span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">cc</span><span class="p">)</span>
+                                 <span class="p">(</span><span class="k">set! </span><span class="nv">gateway</span> <span class="nv">cc</span><span class="p">)</span>
+                                 <span class="p">(</span><span class="nf">outer-space</span> <span class="nv">element</span><span class="p">)))))</span>
+                <span class="nv">lst</span><span class="p">)</span>
+    <span class="p">(</span><span class="nf">outer-space</span> <span class="ss">'end-of-list</span><span class="p">))</span>
+
+  <span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">get-next</span><span class="p">)</span>
+    <span class="p">(</span><span class="nb">call/cc </span><span class="nv">gateway</span><span class="p">))</span>
+
+  <span class="nv">get-next</span><span class="p">)</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+调用<code class="inline_code">make-generator</code>即可得到一个生成器，<code class="inline_code">get-next</code>作为外部调用的接口被返回。
+第一次调用<code class="inline_code">get-next</code>时，当前continuation作为参数传递给<code class="inline_code">gateway</code>函数中的<code class="inline_code">outer-space</code>，
+然后<code class="inline_code">for-each</code>开始依次访问列表<code class="inline_code">lst</code>中的元素。访问第一个元素时，
+执行lambda中定义的操作，首先求值里面的<code class="inline_code">call/cc</code>，将当前的continuation保存在<code class="inline_code">gateway</code>中。
+注意这里的continuation是“<code class="inline_code">for-each</code>访问第一个元素”，而之前的continuation是“调用<code class="inline_code">get-next</code>”。
+然后<code class="inline_code">element</code>被传回给<code class="inline_code">outer-space</code>，跳回外面的<code class="inline_code">call/cc</code>调用，<code class="inline_code">element</code>，即<code class="inline_code">lst</code>的第一个元素作为<code class="inline_code">call/cc</code>的返回值，
+被<code class="inline_code">get-next</code>返回。第二次调用<code class="inline_code">get-next</code>时，<code class="inline_code">gateway</code>绑定的已经不再是内部定义的函数，
+而是之前<code class="inline_code">for-each</code>中捕获的continuation，<code class="inline_code">get-next</code>中的<code class="inline_code">call/cc</code>将当前continuation（“调用<code class="inline_code">get-next</code>”）传入，
+执行跳转到<code class="inline_code">for-each</code>中的<code class="inline_code">call/cc</code>，并且这个<code class="inline_code">call/cc</code>返回外面传入的continuation，
+并赋值给<code class="inline_code">outer-space</code>。随后<code class="inline_code">for-each</code>开始访问第二个元素，直到到达列表末尾时，符号<code class="inline_code">'end-of-list</code>被返回。
+</p>
+
+
+<h1> 实现coroutine</h1>
+<p>
+Coroutine是一种多任务的实现方式，但与多线程不同的是，
+coroutine实际上只是控制的跳来跳去，不涉及到多线程中的竞争、死锁等问题。
+以下这个例子来自<a href="http://en.wikipedia.org/wiki/Continuation" title="None">wiki</a>（略去了注释和队列操作的代码）：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">fork</span> <span class="nv">proc</span><span class="p">)</span>
+  <span class="p">(</span><span class="nf">call/cc</span>
+   <span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">k</span><span class="p">)</span>
+     <span class="p">(</span><span class="nf">enqueue</span> <span class="nv">k</span><span class="p">)</span>
+     <span class="p">(</span><span class="nf">proc</span><span class="p">))))</span>
+
+<span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">yield</span><span class="p">)</span>
+  <span class="p">(</span><span class="nf">call/cc</span>
+   <span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">k</span><span class="p">)</span>
+     <span class="p">(</span><span class="nf">enqueue</span> <span class="nv">k</span><span class="p">)</span>
+     <span class="p">((</span><span class="nf">dequeue</span><span class="p">)))))</span>
+
+<span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">thread-exit</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">if </span><span class="p">(</span><span class="nf">empty-queue?</span><span class="p">)</span>
+      <span class="p">(</span><span class="nf">exit</span><span class="p">)</span>
+      <span class="p">((</span><span class="nf">dequeue</span><span class="p">))))</span>
+
+<span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">do-stuff-n-print</span> <span class="nv">str</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">lambda </span><span class="p">()</span>
+    <span class="p">(</span><span class="k">let </span><span class="nv">loop</span> <span class="p">((</span><span class="nf">n</span> <span class="mi">0</span><span class="p">))</span>
+      <span class="p">(</span><span class="nf">format</span> <span class="no">#t</span> <span class="s">"~A ~A\n"</span> <span class="nv">str</span> <span class="nv">n</span><span class="p">)</span>
+      <span class="p">(</span><span class="nf">yield</span><span class="p">)</span>
+      <span class="p">(</span><span class="nf">loop</span> <span class="p">(</span><span class="mi">1</span><span class="nv">+</span> <span class="nv">n</span><span class="p">)))))</span>
+
+<span class="p">(</span><span class="nf">fork</span> <span class="p">(</span><span class="nf">do-stuff-n-print</span> <span class="s">"This is AAA"</span><span class="p">))</span>
+<span class="p">(</span><span class="nf">fork</span> <span class="p">(</span><span class="nf">do-stuff-n-print</span> <span class="s">"Hello from BBB"</span><span class="p">))</span>
+<span class="p">(</span><span class="nf">thread-exit</span><span class="p">)</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+以上的<code class="inline_code">fork</code>将一个函数入队并调用。<code class="inline_code">do-stuff-n-print</code>中调用的<code class="inline_code">yield</code>函数从队首取出一个待执行的continuation，
+并入队当前的continuation。两次<code class="inline_code">fork</code>的函数将交替输出。
+</p>
+
+
+<p>
+我们可以用continuation的思想来将函数转化为一系列尾调用，
+方法是为每个函数传入一个额外的参数<code class="inline_code">cont</code>，这个<code class="inline_code">cont</code>表示当前这个函数执行完毕后，
+对结果将要进行的后续操作。
+例如一个求平方和再开方的小程序（仍然来自<a href="http://en.wikipedia.org/wiki/Continuation-passing_style" title="None">wiki</a>：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre>1
+2</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">pyth</span> <span class="nv">x</span> <span class="nv">y</span><span class="p">)</span>
+  <span class="p">(</span><span class="nb">sqrt </span><span class="p">(</span><span class="nb">+ </span><span class="p">(</span><span class="nb">* </span><span class="nv">x</span> <span class="nv">x</span><span class="p">)</span> <span class="p">(</span><span class="nb">* </span><span class="nv">y</span> <span class="nv">y</span><span class="p">))))</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+可以改写为：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">pyth&amp;</span> <span class="nv">x</span> <span class="nv">y</span> <span class="nv">k</span><span class="p">)</span>
+  <span class="p">(</span><span class="nf">*&amp;</span> <span class="nv">x</span> <span class="nv">x</span> <span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">x2</span><span class="p">)</span>
+           <span class="p">(</span><span class="nf">*&amp;</span> <span class="nv">y</span> <span class="nv">y</span> <span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">y2</span><span class="p">)</span>
+                    <span class="p">(</span><span class="nf">+&amp;</span> <span class="nv">x2</span> <span class="nv">y2</span> <span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">sq</span><span class="p">)</span>
+                               <span class="p">(</span><span class="nf">sqrt&amp;</span> <span class="nv">sq</span> <span class="nv">k</span><span class="p">))))))))</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+这里的<code class="inline_code">primitive</code>都被换成了改写后的版本：
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7
+8</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">define </span><span class="p">(</span><span class="nf">cps-prim</span> <span class="nv">f</span><span class="p">)</span>
+  <span class="p">(</span><span class="k">lambda </span><span class="nv">args</span>
+    <span class="p">(</span><span class="k">let </span><span class="p">((</span><span class="nf">r</span> <span class="p">(</span><span class="nb">reverse </span><span class="nv">args</span><span class="p">)))</span>
+      <span class="p">((</span><span class="nb">car </span><span class="nv">r</span><span class="p">)</span> <span class="p">(</span><span class="nb">apply </span><span class="nv">f</span> <span class="p">(</span><span class="nb">reverse </span><span class="p">(</span><span class="nb">cdr </span><span class="nv">r</span><span class="p">)))))))</span>
+
+<span class="p">(</span><span class="k">define </span><span class="nv">+&amp;</span> <span class="p">(</span><span class="nf">cps-prim</span> <span class="nv">+</span><span class="p">))</span>
+<span class="p">(</span><span class="k">define </span><span class="nv">*&amp;</span> <span class="p">(</span><span class="nf">cps-prim</span> <span class="nv">*</span><span class="p">))</span>
+<span class="p">(</span><span class="k">define </span><span class="nv">sqrt&amp;</span> <span class="p">(</span><span class="nf">cps-prim</span> <span class="nv">sqrt</span><span class="p">))</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+以上的风格称为continuation-passing style（CPS）这样改写后，
+每个函数调用接收的参数，或者是一个函数，或者是一个datum，求值顺序、函数返回、
+中间值都被显式地确定，常用于函数式语言编译器对代码的内部表示（一般需要尾调用优化以避免栈空间的消耗）。
+</p>
+
+
+<p>
+最后贴一个最让人头疼的东西，传说中Scheme的阴阳谜题（yin-yang puzzle）。
+</p>
+
+
+<table class="code-sectiontable"><tbody><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9</pre></div></td><td class="code"><div class="code-section"><pre><span class="p">(</span><span class="k">let* </span><span class="p">((</span><span class="nf">yin</span> <span class="p">((</span><span class="k">lambda </span><span class="p">(</span><span class="nf">x</span><span class="p">)</span>
+                 <span class="p">(</span><span class="nb">display </span><span class="o">#</span><span class="err">\</span><span class="nv">@</span><span class="p">)</span>
+                 <span class="nv">x</span><span class="p">)</span>
+               <span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">c</span><span class="p">)</span> <span class="nv">c</span><span class="p">))))</span>
+         <span class="p">(</span><span class="nf">yang</span> <span class="p">((</span><span class="k">lambda </span><span class="p">(</span><span class="nf">x</span><span class="p">)</span>
+                  <span class="p">(</span><span class="nb">display </span><span class="sc">#\.</span><span class="p">)</span>
+                  <span class="nv">x</span><span class="p">)</span>
+                <span class="p">(</span><span class="nb">call/cc </span><span class="p">(</span><span class="k">lambda </span><span class="p">(</span><span class="nf">c</span><span class="p">)</span> <span class="nv">c</span><span class="p">)))))</span>
+    <span class="p">(</span><span class="nf">yin</span> <span class="nv">yang</span><span class="p">))</span>
+</pre></div>
+</td></tr></tbody></table>
+<p>
+其实吧，明白了<code class="inline_code">call/cc</code>的工作原理，这个程序很容易看懂，
+关键要理清那两个<code class="inline_code">call/cc</code>每次分别保存的阴和阳的continuation到底是什么，
+我就不在这儿详细分析了，请各位自行尝试……
+</p>
+
+
+
+</div>
+</div>
+
+<br>
+
+<div id="disqus_thread"><iframe id="dsq-2" data-disqus-uid="2" allowtransparency="true" frameborder="0" tabindex="0" title="Disqus" width="100%" src="./saved_resource.htm" style="width: 100% !important; border: none !important; overflow: hidden !important; height: 321px !important;" scrolling="no" horizontalscrolling="no" verticalscrolling="no"></iframe></div>
+<script type="text/javascript">
+/* * * CONFIGURATION VARIABLES: EDIT BEFORE PASTING INTO YOUR WEBPAGE * * */
+var disqus_shortname = 'pathtovoid'; // required: replace example with your forum shortname
+var disqus_developer = 1;
+
+/* * * DON'T EDIT BELOW THIS LINE * * */
+(function() {
+     var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
+     dsq.src = 'http://' + disqus_shortname + '.disqus.com/embed.js';
+     (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+ })();
+</script>
+<noscript>Please enable JavaScript to view the &lt;a href="http://disqus.com/?ref_noscript"&gt;comments powered by Disqus.&lt;/a&gt;</noscript>
+
+<br>
+
+
+</div>
+
+<div id="footer">
+	<p>
+<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/2.5/cn/">
+	<img alt="知识共享许可协议" style="border-width:0" src="./80x15.png">
+</a>
+本作品采用
+<a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/2.5/cn/">知识共享署名-非商业性使用-相同方式共享 2.5 中国大陆许可协议</a>进行许可。
+<br>
+Hosted on <a href="http://github.com/">Github</a>, powered by <a href="http://github.com/pjhades/faerie">faerie</a>
+<a href="http://pathtovoid.net/atom.xml"><img src="./feed.png"></a>
+</p>
+</div>
+</div>
+
+
+</body></html>

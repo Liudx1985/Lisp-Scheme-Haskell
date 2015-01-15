@@ -1,0 +1,56 @@
+import System.Environment    
+import System.Directory   
+import System.IO   
+-- file_rw remove todo.txt 3
+-- file_rw view todo.txt   
+-- file_rw add todo.txt  dance
+
+import Data.List   
+
+dispatch :: [(String, [String] -> IO ())]   
+dispatch =  [ ("add", add)   
+            , ("view", view)   
+            , ("remove", remove)   
+            , ("help", help)
+            ]
+            
+doc =  [ ("view", "usage :file_rw view todo.txt ")
+    , ("remove", "file_rw remove todo.txt 3")
+    , ("add", "file_rw add todo.txt  dance")
+    ]
+
+main = do
+    (command:args) <- getArgs
+    let (Just action) = lookup command dispatch   
+    action args   
+
+help :: [String] -> IO ()
+help [command] = do
+    let (Just docStr) = lookup command doc
+    putStr docStr
+-- putStr "Unknown command"
+    
+add :: [String] -> IO ()   
+add [fileName, todoItem] = appendFile fileName (todoItem ++ "\n")   
+   
+view :: [String] -> IO ()   
+view [fileName] = do   
+    contents <- readFile fileName   
+    let todoTasks = lines contents   
+        numberedTasks = zipWith (\n line -> show n ++ " - " ++ line) [0..] todoTasks   
+    putStr $ unlines numberedTasks   
+   
+remove :: [String] -> IO ()   
+remove [fileName, numberString] = do   
+    handle <- openFile fileName ReadMode   
+    (tempName, tempHandle) <- openTempFile "." "temp"   
+    contents <- hGetContents handle   
+    let number = read numberString   
+        todoTasks = lines contents   
+        newTodoItems = delete (todoTasks !! number) todoTasks   
+    hPutStr tempHandle $ unlines newTodoItems   
+    hClose handle   
+    hClose tempHandle   
+    removeFile fileName   
+    renameFile tempName fileName
+    
