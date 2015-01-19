@@ -1,3 +1,6 @@
+{-
+FROM https://www.haskell.org/haskellwiki/All_About_Monads#The_MonadTrans_and_MonadIO_classes
+-}
 import Data.Maybe
 import Control.Monad
 import Control.Monad
@@ -8,10 +11,10 @@ type Var   = String
 type Value = String
 data Predicate = Is    Var Value            -- var has specific value
                | Equal Var Var              -- vars have same (unspecified) value
-           | And   Predicate Predicate  -- both are true
-           | Or    Predicate Predicate  -- at least one is true
-           | Not   Predicate            -- it is not true
-  deriving (Eq, Show)
+               | And   Predicate Predicate  -- both are true
+               | Or    Predicate Predicate  -- at least one is true
+               | Not   Predicate            -- it is not true
+               deriving (Eq, Show)
  
 type Variables = [(Var,Value)]
  
@@ -84,6 +87,21 @@ getSolution c i = listToMaybe (evalStateT c i)
 getAllSolutions :: NDS a -> ProblemState -> [a]
 getAllSolutions c i = evalStateT c i
 
+{-
+--apply the predicate language to solve:
+ The Kalotans are a tribe with a peculiar quirk:
+    their males always tell the truth. 
+    Their females never make two consecutive true statements, or two consecutive untrue statements.
+ An anthropologist (let's call him Worf) has begun to study them. 
+ Worf does not yet know the Kalotan language. One day,
+ he meets a Kalotan (heterosexual) couple and their child Kibi. 
+ Worf asks Kibi: ``Are you a boy? The kid answers in Kalotan,
+ which of course Worf doesn't understand. 
+ Worf turns to the parents (who know English) for explanation.
+      One of them says: "Kibi said: `I am a boy.'" 
+      The other adds: "Kibi is a girl. Kibi lied." 
+      Solve for the sex of Kibi and the sex of each parent.
+-}
 -- if a male says something, it must be true
 said :: Var -> Predicate -> Predicate
 said v p = (v `Is` "male") `implies` p
