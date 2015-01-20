@@ -11,3 +11,4 @@ main = do
 	let obj = JObject [("foo", JNumber 1), ("bar", JBool False)]
 	print obj
 	writeFile "a.json" (show obj)
+	hJson = hReadFile
