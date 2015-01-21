@@ -14,7 +14,7 @@ data JValue = JNumber Double
             | JObject [(String, JValue)]
             | JArray [JValue]
             | JString String
-              deriving (Eq, Ord, Show)
+              deriving (Eq, Ord, Show, Read)
 
 -- top level function : parse a json text:
 p_text :: CharParser () JValue
@@ -84,7 +84,6 @@ run p input = case (parse p "(unknown)" input) of
 		print err}
 	Right x -> print x
 
-
 test = run p_value "\"FuckP\""
 	>> run p_value "true"
 	>> run p_value "null"
@@ -118,6 +117,16 @@ test = run p_value "\"FuckP\""
 }
 
 --}
+do_parse :: IO JValue
+do_parse = do 
+  input <- readFile "D:/WorkSpace/_Test/test.json"
+  case (parse p_text "(unknown)" input) of 
+    Left err ->
+      undefined -- Just throw throw
+    Right x -> 
+      return x
+
+main ::IO ()
 main = do 
-	cont <- readFile "D:/WorkSpace/_Test/test.json"
-	run p_text cont
+  x <- do_parse
+  print x
